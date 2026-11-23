@@ -1,0 +1,19 @@
+icker_24hr: a one-line summary of the last 24 hours for a coin: latest price, highest, lowest, total volume and % change.
+klines: a summary of each minute, called a candle: opening price, highest, lowest, closing price and volume for that minute.
+aggTrades: the list of actual deals, each with a price, quantity, time and whether the buyer or the seller started it.
+bookTicker: the best price a buyer offers (bid) and the best price a seller wants (ask) right now.
+
+20 Tables 
+
+Staging (4): ticker_24hr, klines_1m, agg_trades, book_ticker.
+Main (5): dim_symbol, fact_candle_1m, fact_trade, fact_quote, fact_ticker_snapshot.
+Reporting (10): rpt_q01 to rpt_q10.
+Alerts (1): pipeline_alerts, where failed checks are logged.
+
+
+ticker_24hr (about 10 useful columns): symbol, lastPrice, openPrice, highPrice, lowPrice, priceChangePercent, volume, quoteVolume, weightedAvgPrice, count.
+klines (12 values, no names): open time, open, high, low, close, volume, close time, quote volume, number of trades, taker buy base volume, taker buy quote volume, and one ignored value. You add symbol yourself.
+aggTrades (about 8 short keys): a trade id, p price, q quantity, f first trade id, l last trade id, T time, m buyer was maker, M ignore. You add symbol yourself.
+bookTicker (5 columns): symbol, bidPrice, bidQty, askPrice, askQty.
+
+3 metadata columns to every staging table: ingested_at, batch_id and source_endpoint.
