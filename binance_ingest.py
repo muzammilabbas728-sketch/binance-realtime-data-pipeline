@@ -1,3 +1,4 @@
+import sys
 import logging
 import os
 import time
@@ -434,7 +435,7 @@ def ingest_binance_data():
         )
         if failed_symbols:
             logger.error(f"Failed symbols in batch {batch_id}: {', '.join(failed_symbols)}")
-
+            sys.exit(1)
     except Exception as e:
         conn.rollback()
         logger.exception(f"Critical error during ingestion batch {batch_id}: {e}")

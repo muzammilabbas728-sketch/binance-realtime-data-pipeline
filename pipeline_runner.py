@@ -9,6 +9,23 @@ SQL_DIR = BASE_DIR / "sql"
 INGEST_SCRIPT = BASE_DIR / "binance_ingest.py"
 
 
+def log_alert(step: str, message, severity: str = "ERROR"):
+    try:
+        alert_conn = get_connection()
+        try:
+            with alert_conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO main.pipeline_alerts (step, severity, message) "
+                    "VALUES (%s, %s, %s)",
+                    (step, severity, str(message)[:2000]),
+                )
+            alert_conn.commit()
+        finally:
+            alert_conn.close()
+    except Exception as exc:
+        print(f"[ALERT-FAIL] Could not write alert: {exc}")
+
+
 def run_ingestion():
     print("[STEP 1] Running binance_ingest.py...")
     subprocess.run([sys.executable, str(INGEST_SCRIPT)], check=True)
@@ -39,21 +56,34 @@ def run_dq_checks(conn, dq_path: Path):
                 raise RuntimeError(f"DQ check #{idx} failed with rows: {rows}")
     print(f"[OK] All {len(queries)} DQ checks passed.")
 
-def run_cycle(include_ingest: bool = False):
-    if include_ingest:
-        run_ingestion()
 
-    conn = get_connection()
+def run_cycle(include_ingest: bool = False):
+    step, conn = "start", None
     try:
+        if include_ingest:
+            step = "ingestion"
+            run_ingestion()
+
+        conn = get_connection()
+
+        step = "transform"
         run_sql_file(conn, SQL_DIR / "transform.sql")
+
+        step = "dq_checks"
         run_dq_checks(conn, SQL_DIR / "dq_checks.sql")
+
+        step = "refresh_reports"
         run_sql_file(conn, SQL_DIR / "refresh_reports.sql")
+
         print("[DONE] Pipeline cycle finished.\n")
-    except Exception:
-        conn.rollback()
+    except Exception as exc:
+        if conn:
+            conn.rollback()
+        log_alert(step, exc)
         raise
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def run_loop(interval_seconds: int = 60, include_ingest: bool = False):
@@ -67,8 +97,8 @@ def run_loop(interval_seconds: int = 60, include_ingest: bool = False):
 
 
 if __name__ == "__main__":
-    # Single test run first (set include_ingest=True if you want ingestion in each cycle)
-    run_loop(interval_seconds=60, include_ingest=True)
+    # Single test run by default; pass include_ingest=True to ingest fresh Binance data first
+    run_cycle(include_ingest=True)
 
-    # Once verified, uncomment to run on a loop:
+    # To run continuously on a loop instead, comment out run_cycle(...) above and uncomment:
     # run_loop(interval_seconds=60, include_ingest=True)
